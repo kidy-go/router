@@ -1,0 +1,38 @@
+// trie_test.go kee > 2021/03/17
+
+package router
+
+import (
+	"fmt"
+	"testing"
+)
+
+func TestTrie(t *testing.T) {
+
+	trie := &TriePath{}
+	trie.Insert("/")
+	trie.Insert("/home")
+	trie.Insert(`/users/{id:regexp([0-9_]+)}`)
+	trie.Insert(`/categary/{:int}`)
+	trie.Insert("/shop/{id:int}/info")
+	trie.Insert(`/sint/{id:int}/{sid:uint}`)
+	trie.Insert(`/slong/{:long}`)
+
+	fmt.Println(`>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`)
+	var params = &Params{}
+	fmt.Println(`>>INTT`, trie.Match("/sint/2147483647/112", params))
+	fmt.Println(params)
+	fmt.Println(`>>INTF`, trie.Match("/sint/2147483648", params))
+
+	fmt.Println(`>>LONG`, trie.Match("/slong/9223372036854775807", params))
+	fmt.Println(`>>LONG`, trie.Match("/slong/9223372036854775808", params))
+	fmt.Println(`>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>`)
+
+	fmt.Println(">>F", trie.Match("/users", params))
+	fmt.Println(">>T", trie.Match("/users/1234_5678", params))
+	fmt.Println(">>F", trie.Match("/shop/{int}/info", params))
+	fmt.Println(">>T", trie.Match("/", params))
+	fmt.Println(">>F", trie.Match("/yes", params))
+	fmt.Println(">>T", trie.Match("/shop/121/info", params))
+	fmt.Println(">>T", trie.Match("/categary/2011123456", params))
+}

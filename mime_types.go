@@ -784,3 +784,12 @@ func (m MIMETypes) GuessExtension(mime string) string {
 	}
 	return "undefined"
 }
+
+func (m MIMETypes) Extension2MIME(ext string) string {
+	for e, t := range m {
+		if e == ext {
+			return t
+		}
+	}
+	return "None"
+}

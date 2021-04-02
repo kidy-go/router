@@ -1,214 +1,161 @@
-// router.go kee > 2021/02/08
+// router.go kee > 2021/03/20
 
 package router
 
 import (
-	"fmt"
-	"github.com/spf13/cast"
 	"net/http"
 	"reflect"
 	"regexp"
 	"strings"
 )
 
-const (
-	ANY = iota
-	GET
-	POST
-	HEAD
-	OPTIONS
-	PUT
-	PATCH
-	DELETE
-	TRACE
-	CONNECT
-)
-
-func MethodCode(method string) int {
-	switch strings.ToUpper(method) {
-	case "ANY":
-		return ANY
-	case "GET":
-		return GET
-	case "POST":
-		return POST
-	case "HEAD":
-		return HEAD
-	case "OPTIONS":
-		return OPTIONS
-	case "PUT":
-		return PUT
-	case "PATCH":
-		return PATCH
-	case "DELETE":
-		return DELETE
-	case "TRACE":
-		return TRACE
-	case "CONNECT":
-		return CONNECT
-	default:
-		return ANY
-	}
-}
-
-type Route struct {
-	handler  interface{}
-	value    reflect.Value
-	typeof   reflect.Type
-	context  *context
-	path     string
-	methods  []string
-	children map[int][]Route
-	params   []string
-}
-
 type Router struct {
-	routes  map[int][]Route
-	context *context
-	host    string
+	routes     map[string][]*Route
+	groupStack GroupStack
+}
+
+type GroupStack struct {
+	prefix string
+	suffix string
+	domain string
+	uses   []interface{}
 }
 
 func NewRouter() *Router {
 	return &Router{
-		routes: map[int][]Route{},
-	}
-}
-
-func InitRoutes() map[int][]Route {
-	return map[int][]Route{
-		ANY:     []Route{},
-		GET:     []Route{},
-		POST:    []Route{},
-		HEAD:    []Route{},
-		OPTIONS: []Route{},
-		PUT:     []Route{},
-		PATCH:   []Route{},
-		DELETE:  []Route{},
-		TRACE:   []Route{},
-		CONNECT: []Route{},
+		routes: make(map[string][]*Route),
 	}
 }
 
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	ctx := NewContext(req, w)
-	cType := reflect.TypeOf((*Context)(nil)).Elem()
 
-	method := MethodCode(req.Method)
-	routes, ok := r.routes[method]
-	if ok {
-		if any, ok := r.routes[ANY]; ok {
-			routes = append(routes, any...)
-		}
-	}
-	ok, route := r.pathMatch(method, req.URL.Path, routes)
-	if ok {
-		typ := route.typeof
-		var params []reflect.Value
-		for i, j := 0, 0; i < typ.NumIn(); i++ {
-			if typ.In(i).Implements(cType) {
-				params = append(params, reflect.ValueOf(ctx))
-			} else if typ.In(i) == reflect.TypeOf(route.handler) {
-				//params = append(params, reflect.ValueOf(route.handler))
-			} else {
-				var v interface{}
-				switch typ.In(i).Kind() {
-				case reflect.String:
-					v = route.params[j]
-				case reflect.Int:
-					v = cast.ToInt(route.params[j])
-				case reflect.Int64:
-					v = cast.ToInt64(route.params[j])
-				case reflect.Int32:
-					v = cast.ToInt32(route.params[j])
-				case reflect.Bool:
-					b := strings.ToLower(route.params[j])
-					v = false
-					if b == "1" || b == "t" || b == "true" {
-						v = true
-					}
-				default:
-					v = route.params[j]
-				}
-				if v != nil {
-					params = append(params, reflect.ValueOf(v))
-					j++
-				}
-			}
-		}
-		//ctx.params = RequestParams{params}
-		result := route.value.Call(params)
-		dispatchResult(result, ctx)
+	if ok, result := r.dispatch(ctx); ok {
+		VarDump(result)
 	} else {
-		ctx.NotFound()
+		VarDump([]reflect.Value{
+			reflect.ValueOf(404),
+			reflect.ValueOf("Not Found"),
+		})
 	}
 }
 
-func (r *Router) pathMatch(method int, path string, routes []Route) (ok bool, route Route) {
-	for _, rot := range routes {
-		ok, route = rot.PathMatch(method, path)
-		if ok {
-			break
-		}
+func (r *Router) Handle(uri string, handler interface{}) {
+	typ, val := reflect.TypeOf(handler), reflect.ValueOf(handler)
+
+	if r.groupStack.prefix != "" {
+		uri = r.groupStack.prefix + uri
 	}
-	return
-}
-
-func (r *Router) Handler(path string, handler interface{}) Route {
-	typ := reflect.TypeOf(handler)
-	val := reflect.ValueOf(handler)
-	route := Route{
-		handler:  handler,
-		value:    val,
-		typeof:   typ,
-		path:     path,
-		children: map[int][]Route{},
-	}
-	return r.handler(ANY, route)
-}
-
-func (r *Router) handler(method int, route Route) Route {
-	typ := route.typeof
-	val := route.value
-	path := route.path
-
-	switch typ.Kind() {
-	case reflect.Func:
-	case reflect.Ptr:
+	if typ.Kind() == reflect.Ptr {
 		for i := 0; i < typ.NumMethod(); i++ {
 			tM := typ.Method(i)
-			m, spath := parsePtr(tM.Name, typ.Method(i).Type)
-			spath = path + spath
-			if len(spath) > 1 && spath[len(spath)-1:] == "/" {
-				spath = spath[:len(spath)-1]
+			m, path := parsePtr(tM.Name, typ.Method(i).Type)
+			path = uri + path
+			if len(path) > 1 && path[len(path)-1:] == "/" {
+				path = path[:len(path)-1]
 			}
-			spath = strings.Replace(spath, "//", "/", -1)
-			sroute := Route{
-				path:     spath,
-				handler:  route.handler,
-				typeof:   typ.Method(i).Type,
-				value:    val.Method(i),
-				methods:  []string{m},
-				children: map[int][]Route{},
+			path = strings.Replace(path, "//", "/", -1)
+			for _, method := range m {
+				if nil == r.routes[method] {
+					r.routes[method] = []*Route{}
+				}
+				r.routes[method] = append(r.routes[method], &Route{
+					uri:     path,
+					handler: handler,
+					typ:     typ.Method(i).Type,
+					val:     val.Method(i),
+					methods: m,
+				})
 			}
-			mcode := MethodCode(m)
-			if _, ok := route.children[mcode]; !ok {
-				route.children[mcode] = []Route{}
-			}
-			route.children[mcode] = append(
-				route.children[mcode],
-				r.handler(mcode, sroute),
-			)
 		}
-	case reflect.String:
 	}
-	if _, ok := r.routes[method]; !ok {
-		r.routes[method] = []Route{}
+}
+
+func (r *Router) Get(uri string, handler Handler) *Route {
+	return r.AddRoute("GET", uri, handler)
+}
+
+func (r *Router) Post(uri string, handler Handler) *Route {
+	return r.AddRoute("POST", uri, handler)
+}
+
+func (r *Router) Put(uri string, handler Handler) *Route {
+	return r.AddRoute("PUT", uri, handler)
+}
+
+func (r *Router) Patch(uri string, handler Handler) *Route {
+	return r.AddRoute("PATCH", uri, handler)
+}
+
+func (r *Router) Delete(uri string, handler Handler) *Route {
+	return r.AddRoute("DELETE", uri, handler)
+}
+
+func (r *Router) Options(uri string, handler Handler) *Route {
+	return r.AddRoute("OPTIONS", uri, handler)
+}
+
+func (r *Router) Head(uri string, handler Handler) *Route {
+	return r.AddRoute("HEAD", uri, handler)
+}
+
+func (r *Router) Trace(uri string, handler Handler) *Route {
+	return r.AddRoute("HEAD", uri, handler)
+}
+
+func (r *Router) Connect(uri string, handler Handler) *Route {
+	return r.AddRoute("CONNECT", uri, handler)
+}
+
+func (r *Router) Group(stack GroupStack, gHandler func(*Router)) {
+	router := &Router{
+		groupStack: stack,
+		routes:     make(map[string][]*Route),
 	}
-	r.routes[method] = append(r.routes[method], route)
+	gHandler(router)
+	// merge routes
+	for m, routes := range router.routes {
+		if nil == r.routes[m] {
+			r.routes[m] = []*Route{}
+		}
+		r.routes[m] = append(r.routes[m], routes...)
+	}
+}
+
+func (r *Router) AddRoute(method, uri string, handler interface{}) *Route {
+	var route *Route
+	typ, val := reflect.TypeOf(handler), reflect.ValueOf(handler)
+	if r.groupStack.prefix != "" {
+		uri = r.groupStack.prefix + uri
+	}
+	method = strings.ToUpper(method)
+	if typ.Kind() == reflect.Func {
+		route = &Route{
+			uri:     uri,
+			handler: handler,
+			typ:     typ,
+			val:     val,
+			methods: []string{method},
+		}
+		if nil == r.routes[method] {
+			r.routes[method] = []*Route{}
+		}
+		r.routes[method] = append(r.routes[method], route)
+	}
 	return route
 }
 
-func parsePtr(name string, typ reflect.Type) (string, string) {
+func (r *Router) dispatch(ctx Context) (ok bool, result []reflect.Value) {
+	method, uri := ctx.Request().Method, ctx.Request().URL.Path
+	for _, route := range r.routes[method] {
+		if route.Match(method + uri) {
+			return true, route.dispatch()
+		}
+	}
+	return false, nil
+}
+
+func parsePtr(name string, typ reflect.Type) ([]string, string) {
 	// method: GET / POST / HEAD / OPTIONS / PUT / PATCH / DELETE / TRACE / CONNECT
 	regM := regexp.MustCompile(`^(Get|Post|Head|Options|Put|Patch|Delete|Trace|Connect|Any)?`)
 	method := strings.ToUpper(regM.FindString(name))
@@ -236,9 +183,9 @@ func parsePtr(name string, typ reflect.Type) (string, string) {
 			default:
 				v = "string"
 			}
-			return fmt.Sprintf("/{key%d:%s}", i, v)
+			return "/{:" + v + "}"
 		}
-		return "/{key:string}"
+		return "/{:string}"
 	})
 
 	regPart := regexp.MustCompile("([A-Z]+)")
@@ -251,62 +198,12 @@ func parsePtr(name string, typ reflect.Type) (string, string) {
 	if len(method) <= 0 {
 		method = "GET"
 	}
-	return method, name
-}
-
-func (r *Router) Group(option map[string]interface{}, handler func(*Router)) {
-
-}
-
-func (r *Router) dispatch(path string, route *Route) {
-
-}
-
-func (r Route) PathMatch(method int, path string) (bool, Route) {
-	regx := regexp.MustCompile(`\{(.*?)(:.*?)?(\{[0-9,]+\})?\}`)
-	rp := regx.ReplaceAllStringFunc(r.path, func(match string) string {
-		match = match[1 : len(match)-1]
-		ss := strings.Split(match, ":")
-		switch len(ss) {
-		case 3:
-		case 2:
-			switch ss[1] {
-			case "string":
-				return `([^/]+)`
-			case "int", "int64", "int32":
-				return `(\d+)`
-			case "bool":
-				return `(1|t|T|TRUE|true|True|0|f|F|FALSE|false|False)?`
-			case "path":
-				return `((\w+\/?)+)`
-			default:
-				return `([^/]+)`
-			}
-		case 1:
-			return `([^/]+)`
-		}
-		return match
-	})
-	rp = `^(?U)` + rp + `\z`
-	regx = regexp.MustCompile(rp)
-
-	ok := regx.MatchString(path)
-	if ok {
-		params := regx.FindStringSubmatch(path)
-		if len(params) > 1 {
-			r.params = params[1:]
-		}
-		if children, _ := r.children[method]; len(children) > 0 {
-			for _, crp := range children {
-				crp.params = append(crp.params, r.params...)
-				ok, rr := crp.PathMatch(method, path)
-				if ok {
-					return ok, rr
-				}
-			}
-		} else {
-			return ok, r
-		}
+	var methods []string
+	if method == "ANY" {
+		methods = append(methods, "GET", "POST", "HEAD", "OPTIONS", "PUT", "PATCH", "DELETE", "TRACE", "CONNECT")
+	} else {
+		methods = append(methods, method)
 	}
-	return false, Route{}
+
+	return methods, name
 }

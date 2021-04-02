@@ -1,0 +1,269 @@
+// route.go kee > 2021/03/16
+
+package router
+
+import (
+	//	"net/http"
+	"fmt"
+	"github.com/kidy-go/utils"
+	"github.com/spf13/cast"
+	"reflect"
+	"regexp"
+	"strings"
+)
+
+type Route struct {
+	context  *context
+	handler  interface{}
+	val      reflect.Value
+	typ      reflect.Type
+	path     string
+	params   []string
+	methods  []string
+	children []Route
+}
+
+func NewRoute() Route {
+	return Route{}
+}
+
+func (r Route) Handle(path string, handler interface{}, methods ...string) Route {
+	r.path, r.handler = path, handler
+	r.typ, r.val = reflect.TypeOf(r.handler), reflect.ValueOf(r.handler)
+	r.methods = methods
+	return r.handle(methods...)
+}
+
+func (r Route) handle(methods ...string) Route {
+	typ, val, path := r.typ, r.val, r.path
+
+	if typ == nil {
+		r.typ, r.val = reflect.TypeOf(r.handler), reflect.ValueOf(r.handler)
+		typ, val = r.typ, r.val
+	}
+
+	if typ.Kind() == reflect.Ptr {
+		for i := 0; i < typ.NumMethod(); i++ {
+			tM := typ.Method(i)
+			m, spath := parsePtr(tM.Name, typ.Method(i).Type)
+			methods = append(methods, m...)
+			spath = path + spath
+			if len(spath) > 1 && spath[len(spath)-1:] == "/" {
+				spath = spath[:len(spath)-1]
+			}
+			spath = strings.Replace(spath, "//", "/", -1)
+			sr := Route{
+				path:     spath,
+				handler:  r.handler,
+				typ:      typ.Method(i).Type,
+				val:      val.Method(i),
+				methods:  m,
+				children: []Route{},
+			}
+			if r.children == nil {
+				r.children = []Route{}
+			}
+			r.children = append(
+				r.children,
+				sr.handle(methods...),
+			)
+		}
+	}
+	return r
+}
+
+// 路由寻址匹配 - 多级路由解析
+func (r Route) Search(path string) (bool, Route) {
+	// 处理解析参数解析语法
+	_, _, pRp := parseMatch(r.path)
+	pRp = `(?U)^` + pRp + utils.HasOr(len(r.children) == 0, `\z`, "").(string)
+
+	regx := regexp.MustCompile(pRp)
+	if ok := regx.MatchString(path); ok {
+		// 解析获取URL参数
+		params := regx.FindStringSubmatch(path)
+		if len(params) > 1 {
+			r.params = params[1:]
+			fmt.Println(params[1:])
+		}
+
+		// 继续解析下级路由
+		if len(r.children) > 0 {
+			ok, next := false, Route{}
+			for _, sr := range r.children {
+				sr.params = append(sr.params, r.params...)
+				if ok, next = sr.Search(path); ok {
+					return ok, next
+				}
+			}
+			return ok, next
+		}
+		return ok, r
+	}
+
+	return false, Route{}
+}
+
+func (r Route) HasMethod(method string) bool {
+	if len(r.methods) == 0 {
+		return true
+	}
+	method = strings.ToUpper(method)
+	fmt.Println("METHODs:", r.methods)
+	for _, m := range r.methods {
+		if m == method {
+			return true
+		}
+	}
+	return false
+}
+
+func parsePtr(name string, typ reflect.Type) ([]string, string) {
+	// method: GET / POST / HEAD / OPTIONS / PUT / PATCH / DELETE / TRACE / CONNECT
+	regM := regexp.MustCompile(`^(Get|Post|Head|Options|Put|Patch|Delete|Trace|Connect|Any)?`)
+	method := strings.ToUpper(regM.FindString(name))
+	name = regM.ReplaceAllString(name, "")
+
+	// Has By
+	regBy := regexp.MustCompile("(By)+")
+
+	i := 0
+	name = regBy.ReplaceAllStringFunc(name, func(s string) string {
+		if i <= typ.NumIn() {
+			i += 1
+			var v string
+			switch typ.In(i).Kind() {
+			case reflect.String:
+				v = "string"
+			case reflect.Int:
+				v = "int"
+			case reflect.Int64:
+				v = "int64"
+			case reflect.Int32:
+				v = "int32"
+			case reflect.Bool:
+				v = "bool"
+			default:
+				v = "string"
+			}
+			return "/{" + v + "}"
+		}
+		return "/{string}"
+	})
+
+	regPart := regexp.MustCompile("([A-Z]+)")
+	name = regPart.ReplaceAllStringFunc(name, func(s string) string {
+		return "/" + strings.ToLower(s)
+	})
+	if len(name) <= 0 || name[0:1] != "/" {
+		name = "/" + name
+	}
+	if len(method) <= 0 {
+		method = "GET"
+	}
+	var methods []string
+	if method == "ANY" {
+		methods = append(methods, "GET", "POST", "HEAD", "OPTIONS", "PUT", "PATCH", "DELETE", "TRACE", "CONNECT")
+	} else {
+		methods = append(methods, method)
+	}
+
+	return methods, name
+}
+
+// 参数形式:
+// {param}
+// {param:string}
+// {param:regexp([a-zA-Z0-9]+)}
+// {:string}
+// {:regexp(\d+)}
+//
+// 预定义参数格式:
+// [string]: 字符串类型, 遇到/停止
+// [int]:    数值类型 (取值范围: -2147483648 ~ 2147483647)
+// [long]:   长整型数值 (取值范围: -9223372036854775808 ~ 9223372036854775807)
+// [bool]:	 布尔值类型(取值: 1 、 t 、 T 、 TRUE 、 true 、 True 、 0 、 f 、 F 、 FALSE 、 false 、 False)
+// [number]: 数字类型, 不限取值范围, 将会以字符串类型给出
+// [path]:	 路径地址, 例: /home/www or /home/www/1.txt
+func parseMatch(part string) (key, typ, rp string) {
+	regx := regexp.MustCompile(`\{(.*?)\}`)
+	part = regx.ReplaceAllStringFunc(part, func(match string) string {
+		match = match[1 : len(match)-1]
+		key = match
+		if i := strings.Index(match, ":"); i > -1 {
+			key, typ = match[:i], match[i+1:]
+		}
+
+		switch typ {
+		case "string":
+			return `([^/]+)`
+		case "uint", "ulong":
+			return `(\d)+`
+		case "int":
+			return `[-]?(\d){1,10}`
+		case "long":
+			return `[-]?(\d){0,19}`
+		case "number":
+			return `[-]?(\d+)`
+		case "bool":
+			return `(1|t|T|TRUE|true|True|0|f|F|FALSE|false|False)?`
+		case "path":
+			return `((\w+\/?)+)`
+		default:
+			if len(typ) > 6 && typ[:6] == "regexp" {
+				return typ[6:]
+			}
+			return `([^/]+)`
+		}
+		return match
+	})
+	return key, typ, `^` + part
+}
+
+func (r Route) dispatch(ctx Context) {
+	typ := r.typ
+	cType := reflect.TypeOf((*Context)(nil)).Elem()
+	var params []reflect.Value
+	for i, j := 0, 0; i < typ.NumIn(); i++ {
+		if typ.In(i).Implements(cType) {
+			params = append(params, reflect.ValueOf(ctx))
+		} else if typ.In(i) == reflect.TypeOf(r.handler) {
+			//params = append(params, reflect.ValueOf(route.handler))
+		} else {
+			var v interface{}
+			switch typ.In(i).Kind() {
+			case reflect.String:
+				v = r.params[j]
+			case reflect.Int:
+				v = cast.ToInt(r.params[j])
+			case reflect.Int64:
+				v = cast.ToInt64(r.params[j])
+			case reflect.Int32:
+				v = cast.ToInt32(r.params[j])
+			case reflect.Uint8:
+				v = cast.ToUint8(r.params[j])
+			case reflect.Uint32:
+				v = cast.ToUint32(r.params[j])
+			case reflect.Uint64:
+				v = cast.ToUint64(r.params[j])
+			case reflect.Bool:
+				b := strings.ToLower(r.params[j])
+				v = false
+				if b == "1" || b == "t" || b == "true" {
+					v = true
+				}
+			default:
+				v = r.params[j]
+			}
+			if v != nil {
+				params = append(params, reflect.ValueOf(v))
+				j++
+			}
+		}
+	}
+	//ctx.params = RequestParams{params}
+	result := r.val.Call(params)
+
+	fmt.Println("RES >.", result)
+	//dispatchResult(result, ctx)
+}
