@@ -14,8 +14,8 @@ func (c *rHandler) Index() (int, string) {
 
 func (c *rHandler) Get(ctx Context) map[string]string {
 	return map[string]string{
-		"path":   "path",
-		"method": "GET",
+		"path":   ctx.Request().URL.Path,
+		"method": ctx.Request().Method,
 	}
 }
 

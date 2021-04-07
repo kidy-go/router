@@ -61,10 +61,11 @@ func (r *Route) dispatch() []reflect.Value {
 	cType := reflect.TypeOf((*Context)(nil)).Elem()
 	var params []reflect.Value
 	for i, j := 0, 0; i < typ.NumIn(); i++ {
+		if typ.In(i) == reflect.TypeOf(r.handler) {
+			continue
+		}
 		if typ.In(i).Implements(cType) {
 			params = append(params, reflect.ValueOf(r.ctx))
-		} else if typ.In(i) == reflect.TypeOf(r.handler) {
-			//params = append(params, reflect.ValueOf(route.handler))
 		} else {
 			v := r.params[j]
 			pv := strings.Split(r.params[j], ":")

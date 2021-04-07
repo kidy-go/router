@@ -30,14 +30,19 @@ func NewRouter() *Router {
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	ctx := NewContext(req, w)
 
-	if ok, result := r.dispatch(ctx); ok {
-		VarDump(result)
-	} else {
-		VarDump([]reflect.Value{
+	var (
+		result []reflect.Value
+		ok     bool
+	)
+	if ok, result = r.dispatch(ctx); !ok {
+		result = []reflect.Value{
 			reflect.ValueOf(404),
 			reflect.ValueOf("Not Found"),
-		})
+		}
 	}
+
+	VarDump("res:", result)
+	display(result, ctx)
 }
 
 func (r *Router) Handle(uri string, handler interface{}) {
@@ -149,6 +154,7 @@ func (r *Router) dispatch(ctx Context) (ok bool, result []reflect.Value) {
 	method, uri := ctx.Request().Method, ctx.Request().URL.Path
 	for _, route := range r.routes[method] {
 		if route.Match(method + uri) {
+			route.ctx = ctx
 			return true, route.dispatch()
 		}
 	}
