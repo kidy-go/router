@@ -36,12 +36,9 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	)
 	if ok, result = r.dispatch(ctx); !ok {
 		result = []reflect.Value{
-			reflect.ValueOf(404),
-			reflect.ValueOf("Not Found"),
+			reflect.ValueOf(http.StatusNotFound),
 		}
 	}
-
-	VarDump("res:", result)
 	display(result, ctx)
 }
 

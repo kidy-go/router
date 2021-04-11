@@ -65,7 +65,12 @@ func display(result []reflect.Value, ctx Context) error {
 		}
 	}
 
-	VarDump(content)
+	resp := NewResponse(ctx)
+	resp.WithStatus(403)
+	resp.WithBody(content)
+	_, e := resp.Write()
+	return e
+
 	ctx.ResponseWriter().Header().Set("Content-Type", contentType)
 	if statusCode > 0 {
 		ctx.ResponseWriter().WriteHeader(statusCode)
