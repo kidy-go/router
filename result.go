@@ -66,9 +66,10 @@ func display(result []reflect.Value, ctx Context) error {
 	}
 
 	resp := NewResponse(ctx)
-	resp.WithStatus(403)
 	resp.WithBody(content)
-	_, e := resp.Write()
+	resp.prepare()
+	resp.WithStatus(403)
+	_, e := resp.Write(resp.body)
 	return e
 
 	ctx.ResponseWriter().Header().Set("Content-Type", contentType)

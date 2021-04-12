@@ -4,9 +4,10 @@ package router
 
 import (
 	"fmt"
-	// "github.com/kidy-go/utils"
+	"github.com/kidy-go/utils"
 	//"io"
 	"net/http"
+	"strings"
 )
 
 type Writer interface {
@@ -26,7 +27,7 @@ type Writer interface {
 
 type response struct {
 	rw         http.ResponseWriter
-	header     http.Header
+	req        *http.Request
 	body       []byte
 	statusCode int
 	statusText string
@@ -49,7 +50,7 @@ func NewResponse(ctx Context) *response {
 	rw := ctx.ResponseWriter()
 	return &response{
 		rw:         rw,
-		header:     rw.Header(),
+		req:        ctx.Request(),
 		statusCode: 200,
 	}
 }
@@ -67,13 +68,26 @@ func (resp *response) WithHeaders(header map[string]string) *response {
 }
 
 func (resp *response) WithHeader(key string, value string) *response {
-	resp.header.Set(key, value)
+	resp.rw.Header().Set(key, value)
 	return resp
+}
+
+func (resp *response) Header() http.Header {
+	return resp.rw.Header()
 }
 
 func (resp *response) WithStatus(status int) *response {
 	resp.statusCode = status
 	resp.rw.WriteHeader(resp.statusCode)
+	return resp
+}
+
+func (resp *response) SetContentType(contentType string) *response {
+	resp.WithHeader("Content-Type", contentType)
+	return resp
+}
+
+func (resp *response) JSON(v interface{}) *response {
 	return resp
 }
 
@@ -86,6 +100,18 @@ func (resp *response) Writef(format string, args ...interface{}) (int, error) {
 }
 
 func (resp *response) prepare() {
+	charset := utils.HasOr(resp.charset, "GBK").(string)
+	cType := resp.Header().Get("Content-Type")
+
+	if "" == cType {
+		resp.WithHeader("Content-Type", ContentTypeHTML+"; charset="+charset)
+	} else if 0 == strings.Index(cType, "text/") && -1 == strings.Index(cType, "charset") {
+		resp.WithHeader("Content-Type", cType+"; charset="+charset)
+	}
+
+	if "" == resp.Header().Get("Transfer-Encoding") {
+		resp.Header().Del("Content-Length")
+	}
 }
 
 func (resp *response) statusCodeCheck(status int) bool {
@@ -138,5 +164,5 @@ func (resp *response) IsRedirect(location string) bool {
 			break
 		}
 	}
-	return flag && location == resp.header.Get("Location")
+	return flag && location == resp.Header().Get("Location")
 }
