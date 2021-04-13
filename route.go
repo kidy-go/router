@@ -99,7 +99,7 @@ func (r *Route) dispatch() []reflect.Value {
 				val = v
 			}
 			if val != nil {
-				params = append(params, reflect.ValueOf(v))
+				params = append(params, reflect.ValueOf(val))
 				j++
 			}
 		}

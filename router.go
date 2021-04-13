@@ -39,7 +39,9 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			reflect.ValueOf(http.StatusNotFound),
 		}
 	}
-	display(result, ctx)
+	ctx.response.WithResult(result)
+	ctx.response.Sended()
+	//display(result, ctx)
 }
 
 func (r *Router) Handle(uri string, handler interface{}) {

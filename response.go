@@ -6,7 +6,11 @@ import (
 	"fmt"
 	"github.com/kidy-go/utils"
 	//"io"
+	"encoding/json"
+	"encoding/xml"
+	yaml "gopkg.in/yaml.v2"
 	"net/http"
+	"reflect"
 	"strings"
 )
 
@@ -46,17 +50,67 @@ const (
 	IsNotFound
 )
 
-func NewResponse(ctx Context) *response {
-	rw := ctx.ResponseWriter()
+type HttpError interface {
+	Error() string
+}
+
+func NewResponse(req *http.Request, rw http.ResponseWriter) *response {
 	return &response{
 		rw:         rw,
-		req:        ctx.Request(),
+		req:        req,
 		statusCode: 200,
 	}
 }
 
 func (resp *response) WithBody(body []byte) *response {
 	resp.body = body
+	return resp
+}
+
+func (resp *response) WithResult(result []reflect.Value) *response {
+	if len(result) > 0 {
+		for _, res := range result {
+			if !res.IsValid() {
+				continue
+			}
+
+			cType := resp.Header().Get("Content-Type")
+			switch v := res.Interface().(type) {
+			case bool:
+				if !v {
+					resp.WithStatus(http.StatusNotFound)
+					continue
+				}
+			case int:
+				resp.WithStatus(v)
+			case string:
+				if cType == "" && strings.Index(v, "/") > 0 {
+					resp.WithHeader("Content-Type", cType)
+				} else {
+					resp.WithBody([]byte(v))
+				}
+			case []byte:
+				resp.WithBody(v)
+			case HttpError:
+				if v == nil || res.IsNil() {
+					continue
+				}
+				if resp.statusCode == 0 || resp.statusCode < 400 {
+					resp.WithStatus(http.StatusBadRequest)
+				}
+
+				if len(resp.body) == 0 {
+					resp.WithBody([]byte(v.Error()))
+				}
+				break
+			default:
+				switch reflect.TypeOf(res).Kind() {
+				case reflect.Struct, reflect.Array, reflect.Map:
+					resp.JSON(v)
+				}
+			}
+		}
+	}
 	return resp
 }
 
@@ -88,7 +142,124 @@ func (resp *response) SetContentType(contentType string) *response {
 }
 
 func (resp *response) JSON(v interface{}) *response {
+	resp.WithHeader("Content-Type", ContentTypeJSON)
+	switch b := v.(type) {
+	case string:
+		resp.WithBody([]byte(b))
+	case []byte:
+		resp.WithBody(b)
+	default:
+		var (
+			err error
+			jbt []byte
+		)
+		jbt, err = json.Marshal(b)
+		if err != nil {
+			resp.WithStatus(http.StatusInternalServerError)
+			resp.WithBody([]byte(err.Error()))
+			break
+		}
+		resp.WithBody(jbt)
+	}
 	return resp
+}
+
+func (resp *response) JSONP(callback string, v interface{}) *response {
+	resp.WithHeader("Content-Type", ContentTypeJS)
+	switch b := v.(type) {
+	case string:
+		resp.WithBody([]byte(b))
+	case []byte:
+		resp.WithBody(b)
+	default:
+		var (
+			err error
+			jbt []byte
+		)
+		jbt, err = json.Marshal(b)
+		if err != nil {
+			resp.WithStatus(http.StatusInternalServerError)
+			resp.WithBody([]byte(err.Error()))
+			break
+		}
+		s := callback + `(` + string(jbt) + `)`
+		resp.WithBody([]byte(s))
+	}
+	return resp
+}
+
+func (resp *response) YAML(v interface{}) *response {
+	resp.WithHeader("Content-Type", ContentTypeYAML)
+	switch b := v.(type) {
+	case string:
+		resp.WithBody([]byte(b))
+	case []byte:
+		resp.WithBody(b)
+	default:
+		var (
+			err error
+			jbt []byte
+		)
+		jbt, err = yaml.Marshal(b)
+		if err != nil {
+			resp.WithStatus(http.StatusInternalServerError)
+			resp.WithBody([]byte(err.Error()))
+			break
+		}
+		resp.WithBody(jbt)
+	}
+	return resp
+}
+
+func (resp *response) YAMLText(v interface{}) *response {
+	resp.WithHeader("Content-Type", ContentTypeYAMLText)
+	switch b := v.(type) {
+	case string:
+		resp.WithBody([]byte(b))
+	case []byte:
+		resp.WithBody(b)
+	default:
+		var (
+			err error
+			jbt []byte
+		)
+		jbt, err = yaml.Marshal(b)
+		if err != nil {
+			resp.WithStatus(http.StatusInternalServerError)
+			resp.WithBody([]byte(err.Error()))
+			break
+		}
+		resp.WithBody(jbt)
+	}
+	return resp
+}
+
+func (resp *response) XML(v interface{}) *response {
+	resp.WithHeader("Content-Type", ContentTypeXML)
+	switch b := v.(type) {
+	case string:
+		resp.WithBody([]byte(b))
+	case []byte:
+		resp.WithBody(b)
+	default:
+		var (
+			err error
+			jbt []byte
+		)
+		jbt, err = xml.Marshal(b)
+		if err != nil {
+			resp.WithStatus(http.StatusInternalServerError)
+			resp.WithBody([]byte(err.Error()))
+			break
+		}
+		resp.WithBody(jbt)
+	}
+	return resp
+}
+
+func (resp *response) Stream(v []byte) (int, error) {
+	resp.WithHeader("Content-Type", ContentTypeStream)
+	return resp.Write(v)
 }
 
 func (resp *response) Write(body []byte) (int, error) {
@@ -97,6 +268,15 @@ func (resp *response) Write(body []byte) (int, error) {
 
 func (resp *response) Writef(format string, args ...interface{}) (int, error) {
 	return fmt.Fprintf(resp.rw, format, args...)
+}
+
+func (resp *response) Writer() http.ResponseWriter {
+	return resp.rw
+}
+
+func (resp *response) Sended() (int, error) {
+	VarDump(resp.statusCode, resp.body)
+	return resp.Write(resp.body)
 }
 
 func (resp *response) prepare() {

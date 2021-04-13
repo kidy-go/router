@@ -12,6 +12,7 @@ type Context interface {
 type context struct {
 	request        *http.Request
 	responseWriter http.ResponseWriter
+	response       *response
 }
 
 const (
@@ -49,5 +50,6 @@ func NewContext(r *http.Request, w http.ResponseWriter) *context {
 	return &context{
 		request:        r,
 		responseWriter: w,
+		response:       NewResponse(r, w),
 	}
 }

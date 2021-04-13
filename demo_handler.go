@@ -6,6 +6,13 @@ import (
 	"fmt"
 )
 
+type ModResult struct {
+	Name string `json:"name"`
+	Id   int    `json:"id"`
+	Sex  string `json:"sex"`
+	Age  int    `json:"age"`
+}
+
 type rHandler struct{}
 
 func (c *rHandler) Index() (int, string) {
@@ -16,6 +23,15 @@ func (c *rHandler) Get(ctx Context) map[string]string {
 	return map[string]string{
 		"path":   ctx.Request().URL.Path,
 		"method": ctx.Request().Method,
+	}
+}
+
+func (c *rHandler) GetByContent(id int) *ModResult {
+	return &ModResult{
+		Name: "Kee",
+		Sex:  "Men",
+		Id:   id,
+		Age:  29,
 	}
 }
 
