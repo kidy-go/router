@@ -1,9 +1,10 @@
 // demo_handler.go kee > 2021/03/18
 
-package router
+package test
 
 import (
 	"fmt"
+	"github.com/kidy-go/router"
 )
 
 type ModResult struct {
@@ -19,7 +20,7 @@ func (c *rHandler) Index() (int, string) {
 	return 403, "Hi index"
 }
 
-func (c *rHandler) Get(ctx Context) map[string]string {
+func (c *rHandler) Get(ctx router.Context) map[string]string {
 	return map[string]string{
 		"path":   ctx.Request().URL.Path,
 		"method": ctx.Request().Method,
@@ -49,10 +50,10 @@ func (c *rHandler) PatchBy(id int) {}
 
 func (c *rHandler) DeleteBy(id int) {}
 
-func (c *rHandler) PutPowerBy(ctx Context, name string) string {
+func (c *rHandler) PutPowerBy(ctx router.Context, name string) string {
 	return "hello " + name
 }
 
-func demoFunc(i8 uint8) string {
+func demoFunc(i8 int) string {
 	return fmt.Sprintf("%d", i8)
 }

@@ -15,10 +15,10 @@ type Router struct {
 }
 
 type GroupStack struct {
-	prefix string
-	suffix string
-	domain string
-	uses   []interface{}
+	Prefix string
+	Suffix string
+	Domain string
+	Uses   []interface{}
 }
 
 func NewRouter() *Router {
@@ -47,8 +47,8 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 func (r *Router) Handle(uri string, handler interface{}) {
 	typ, val := reflect.TypeOf(handler), reflect.ValueOf(handler)
 
-	if r.groupStack.prefix != "" {
-		uri = r.groupStack.prefix + uri
+	if r.groupStack.Prefix != "" {
+		uri = r.groupStack.Prefix + uri
 	}
 	if typ.Kind() == reflect.Ptr {
 		for i := 0; i < typ.NumMethod(); i++ {
@@ -129,8 +129,8 @@ func (r *Router) Group(stack GroupStack, gHandler func(*Router)) {
 func (r *Router) AddRoute(method, uri string, handler interface{}) *Route {
 	var route *Route
 	typ, val := reflect.TypeOf(handler), reflect.ValueOf(handler)
-	if r.groupStack.prefix != "" {
-		uri = r.groupStack.prefix + uri
+	if r.groupStack.Prefix != "" {
+		uri = r.groupStack.Prefix + uri
 	}
 	method = strings.ToUpper(method)
 	if typ.Kind() == reflect.Func {

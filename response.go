@@ -275,7 +275,7 @@ func (resp *response) Writer() http.ResponseWriter {
 }
 
 func (resp *response) Sended() (int, error) {
-	VarDump(resp.statusCode, resp.body)
+	//VarDump(resp.statusCode, resp.body)
 	return resp.Write(resp.body)
 }
 

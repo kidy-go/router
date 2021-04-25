@@ -8,82 +8,82 @@ import (
 
 const (
 	// 2xx
-	StatusCodeOK                          = 200
-	StatusCodeCreated                     = 201
-	StatusCodeAccepted                    = 202
-	StatusCodeNonAuthoritativeInformation = 203
-	StatusCodeNoContent                   = 204
-	StatusCodeResetContent                = 205
-	StatusCodePartialContent              = 206
-	StatusCodeMultiStatus                 = 207
-	StatusCodeAlreadyReported             = 208
+	StatusOK                          = 200
+	StatusCreated                     = 201
+	StatusAccepted                    = 202
+	StatusNonAuthoritativeInformation = 203
+	StatusNoContent                   = 204
+	StatusResetContent                = 205
+	StatusPartialContent              = 206
+	StatusMultiStatus                 = 207
+	StatusAlreadyReported             = 208
 
 	// 3xx
-	StatusCodeMultipleChoices   = 300
-	StatusCodeMovedPermanently  = 301
-	StatusCodeFound             = 302
-	StatusCodeSeeOther          = 303
-	StatusCodeNotModified       = 304
-	StatusCodeUseProxy          = 305
-	StatusCodeTemporaryRedirect = 307
-	StatusCodePermanentRedirect = 308
+	StatusMultipleChoices   = 300
+	StatusMovedPermanently  = 301
+	StatusFound             = 302
+	StatusSeeOther          = 303
+	StatusNotModified       = 304
+	StatusUseProxy          = 305
+	StatusTemporaryRedirect = 307
+	StatusPermanentRedirect = 308
 
 	// 4xx
-	StatusCodeBadRequest                   = 400
-	StatusCodeUnauthorized                 = 401
-	StatusCodePaymentRequired              = 402
-	StatusCodeForbidden                    = 403
-	StatusCodeNotFound                     = 404
-	StatusCodeMethodNotAllowed             = 405
-	StatusCodeNotAcceptable                = 406
-	StatusCodeProxyAuthenticationRequired  = 407
-	StatusCodeRequestTimeout               = 408
-	StatusCodeConflict                     = 409
-	StatusCodeGone                         = 410
-	StatusCodeLengthRequired               = 411
-	StatusCodePreconditionFailed           = 412
-	StatusCodeRequestEntityTooLarge        = 413
-	StatusCodeRequestURITooLong            = 414
-	StatusCodeUnsupportedMediaType         = 415
-	StatusCodeRequestedRangeNotSatisfiable = 416
-	StatusCodeExpectationFailed            = 417
-	StatusCodeAsTeapot                     = 418 // 反爬虫
+	StatusBadRequest                   = 400
+	StatusUnauthorized                 = 401
+	StatusPaymentRequired              = 402
+	StatusForbidden                    = 403
+	StatusNotFound                     = 404
+	StatusMethodNotAllowed             = 405
+	StatusNotAcceptable                = 406
+	StatusProxyAuthenticationRequired  = 407
+	StatusRequestTimeout               = 408
+	StatusConflict                     = 409
+	StatusGone                         = 410
+	StatusLengthRequired               = 411
+	StatusPreconditionFailed           = 412
+	StatusRequestEntityTooLarge        = 413
+	StatusRequestURITooLong            = 414
+	StatusUnsupportedMediaType         = 415
+	StatusRequestedRangeNotSatisfiable = 416
+	StatusExpectationFailed            = 417
+	StatusAsTeapot                     = 418 // 反爬虫
 
 	// 4xx-other
-	StatusCodePageExpired                      = 419
-	StatusCodeBlockedByWindowsParentalControls = 450
-	StatusCodeInvalidToken                     = 498
-	StatusCodeTokenRequired                    = 499
+	StatusPageExpired                      = 419
+	StatusBlockedByWindowsParentalControls = 450
+	StatusInvalidToken                     = 498
+	StatusTokenRequired                    = 499
 
 	// 5xx
-	StatusCodeInternalServerError           = 500
-	StatusCodeNotImplemented                = 501
-	StatusCodeBadGateway                    = 502
-	StatusCodeServiceUnavailable            = 503
-	StatusCodeGatewayTimeout                = 504
-	StatusCodeHTTPVersionNotSupported       = 505
-	StatusCodeVariantAlsoNegotiates         = 506
-	StatusCodeInsufficientStorage           = 507
-	StatusCodeLoopDetected                  = 508
-	StatusCodeBandwidthLimitExceeded        = 509
-	StatusCodeNotExtended                   = 510
-	StatusCodeNetworkAuthenticationRequired = 511
-	StatusCodeInvalidSSLCertificate         = 526
-	StatusCodeSiteOverloaded                = 529
-	StatusCodeSiteFrozen                    = 530
-	StatusCodeNetworkReadTimeout            = 598
+	StatusInternalServerError           = 500
+	StatusNotImplemented                = 501
+	StatusBadGateway                    = 502
+	StatusServiceUnavailable            = 503
+	StatusGatewayTimeout                = 504
+	StatusHTTPVersionNotSupported       = 505
+	StatusVariantAlsoNegotiates         = 506
+	StatusInsufficientStorage           = 507
+	StatusLoopDetected                  = 508
+	StatusBandwidthLimitExceeded        = 509
+	StatusNotExtended                   = 510
+	StatusNetworkAuthenticationRequired = 511
+	StatusInvalidSSLCertificate         = 526
+	StatusSiteOverloaded                = 529
+	StatusSiteFrozen                    = 530
+	StatusNetworkReadTimeout            = 598
 )
 
 var unofficialStatusText = map[int]string{
-	StatusCodePageExpired:                      "Page Expired",
-	StatusCodeBlockedByWindowsParentalControls: "Blocked by Windows Parental Controls",
-	StatusCodeInvalidToken:                     "Invalid Token",
-	StatusCodeTokenRequired:                    "Token Required",
-	StatusCodeBandwidthLimitExceeded:           "Bandwidth Limit Exceeded",
-	StatusCodeInvalidSSLCertificate:            "Invalid SSL Certificate",
-	StatusCodeSiteOverloaded:                   "Site is overloaded",
-	StatusCodeSiteFrozen:                       "Site is frozen",
-	StatusCodeNetworkReadTimeout:               "Network read timeout error",
+	StatusPageExpired:                      "Page Expired",
+	StatusBlockedByWindowsParentalControls: "Blocked by Windows Parental Controls",
+	StatusInvalidToken:                     "Invalid Token",
+	StatusTokenRequired:                    "Token Required",
+	StatusBandwidthLimitExceeded:           "Bandwidth Limit Exceeded",
+	StatusInvalidSSLCertificate:            "Invalid SSL Certificate",
+	StatusSiteOverloaded:                   "Site is overloaded",
+	StatusSiteFrozen:                       "Site is frozen",
+	StatusNetworkReadTimeout:               "Network read timeout error",
 }
 
 func StatusText(code int) (text string) {

@@ -1,0 +1,50 @@
+// router_test.go kee > 2021/03/20
+
+package router
+
+import (
+	"fmt"
+	"html/template"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
+
+func setRouter() *Router {
+	router := NewRouter()
+	router.AddRoute("get", "/i8u", demoFunc)
+	router.AddRoute("Get", "/i8u/power", (&rHandler{}).Index)
+	router.Group(GroupStack{
+		prefix: "/prefix",
+	}, func(router *Router) {
+		router.Handle("/", new(rHandler))
+		router.AddRoute("GET", "/rhome", "rHandler@Index")
+	})
+	return router
+}
+
+func TestRouter(t *testing.T) {
+	r, _ := http.NewRequest(http.MethodGet, "/prefix/index", nil)
+	w := httptest.NewRecorder()
+
+	router := setRouter()
+	router.ServeHTTP(w, r)
+
+	fmt.Println(w.Body.String())
+	return
+	//router := setRouter()
+	//s.Handler = router
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		tpl, err := template.New("html").Parse(`<h1>hello world</h1>`)
+		if err != nil {
+			panic(err)
+		}
+		err = tpl.Execute(w, "index")
+		if err != nil {
+			panic(err)
+		}
+		//fmt.Fprint(w, r.URL.Path)
+	})
+	s := &http.Server{Addr: ":89"}
+	s.ListenAndServe()
+}
